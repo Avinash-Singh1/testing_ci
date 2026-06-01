@@ -1,0 +1,111 @@
+# Workflow name shown in GitHub Actions tab
+name: Node.js CI Pipeline
+
+# Events that trigger this workflow
+on:
+  # Runs when code is pushed
+  push:
+    branches:
+      - main
+      - master
+      - develop
+      - staging
+
+  # Runs when pull request is created/updated
+  pull_request:
+    branches:
+      - main
+      - master
+      - develop
+      - staging
+
+  # Allows manual run from GitHub Actions UI
+  workflow_dispatch:
+
+  # Optional scheduled run
+  # Runs every day at 12:00 AM UTC
+  schedule:
+    - cron: "0 0 * * *"
+
+# Permissions for GitHub token
+permissions:
+  contents: read
+  pull-requests: read
+  checks: write
+
+# Global environment variables
+env:
+  NODE_ENV: test
+  CI: true
+
+jobs:
+  # Job name
+  build-and-test:
+    # Display name in GitHub UI
+    name: Build and Test Node.js App
+
+    # Runner machine
+    runs-on: ubuntu-latest
+
+    # Stop job after 15 minutes if stuck
+    timeout-minutes: 15
+
+    # Test on multiple Node versions
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version:
+          - 20
+          - 22
+
+    steps:
+      # Step 1: Download repository code
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          # Fetch full git history
+          fetch-depth: 0
+
+      # Step 2: Setup Node.js
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          # Uses version from matrix above
+          node-version: ${{ matrix.node-version }}
+
+          # Cache npm dependencies
+          cache: npm
+
+          # Lock file used for cache
+          cache-dependency-path: package-lock.json
+
+      # Step 3: Show versions
+      - name: Check Node and npm version
+        run: |
+          node -v
+          npm -v
+
+      # Step 4: Install dependencies
+      - name: Install dependencies
+        run: npm ci
+
+      # Step 5: Run lint if script exists
+      - name: Run lint
+        run: npm run lint --if-present
+
+      # Step 6: Run tests
+      - name: Run tests
+        run: npm test --if-present
+
+      # Step 7: Run build if script exists
+      - name: Build project
+        run: npm run build --if-present
+
+      # Step 8: Upload build output if dist folder exists
+      - name: Upload build artifact
+        if: success() && hashFiles('dist/**') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: node-build-${{ matrix.node-version }}
+          path: dist/
+          retention-days: 7
